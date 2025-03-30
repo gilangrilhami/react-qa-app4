@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import './App.css';
 // Check if these paths match your project structure
 import { transcribeAudio, validateLeadWithOpenAI } from './services/api';
-import { ValidationResult, MelissaVerificationResult } from './types';
+import { ValidationResult } from './types'; // Removed MelissaVerificationResult import
 import FileUpload from './components/FileUpload';
 import ValidationResultComponent from './components/ValidationResult';
 import { verifyContact } from './services/melissaApi';
@@ -18,6 +18,9 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [transcript, setTranscript] = useState<string>('');
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+
+  // Rest of the component code remains unchanged
+  // ... (rest of the existing code)
 
   // Extract phone number from filename (assuming filename contains a 10-digit number)
   const extractPhoneFromFilename = (filename: string): string => {

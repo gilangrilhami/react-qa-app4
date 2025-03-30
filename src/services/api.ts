@@ -1,5 +1,5 @@
 import { ValidationResult, ValidationStatus, TranscriptData, MelissaData, VerificationStatus } from '../types';
-import config from '../config';
+// Removed unused import: config
 
 // Function to transcribe audio using Deepgram API with diarization enabled
 export const transcribeAudio = async (audioFile: File): Promise<string> => {
@@ -163,20 +163,20 @@ Extract the following data points from the TRANSCRIPT:
   - Use contextual clues like "what is the year and the make of your vehicle and what is the model of your vehicle" (this question is usually asked, and the customer then names their vehicle)
   - Main Vehicle (Year, Make, Model) - Only extract what is explicitly mentioned. If the make or model is not clearly stated, leave those fields empty.
   - Secondary Vehicle (Year, Make, Model), if mentioned - Same rule applies.
-  - Current Insurance Provider (or "Not Insured" if they mentioned they don’t have insurance) - Use contextual clues like "what is the name of your current insurance" -  Use your knowledge of insurance companies to suggest what the customer might mean (example, transcript might say "i'll state" which should be corrected to "AllState")
+  - Current Insurance Provider (or "Not Insured" if they mentioned they don't have insurance) - Use contextual clues like "what is the name of your current insurance" -  Use your knowledge of insurance companies to suggest what the customer might mean (example, transcript might say "i'll state" which should be corrected to "AllState")
 
 - Home Insurance:
   - Whether they're interested in home insurance (Yes/No) - If the customer answers the following questions about rent/own home, type of home etc, they are to be marked as Interested.
   - Whether they rent or own their home - use contextual clues like "do you rent or own your home" to find this.
   - Type of home (Apartment, Condo, Manufactured, Multi-Family, Single-Family, Townhome) - use contextual clues like "what type of home is it", "is it an apartment", "Is it an apartment, condo, manufactured, multi-family, single-family, or townhome" to find this.
-  - Current Home Insurance Provider (or "Not Insured" if they mentioned they don’t have insurance) - Use your knowledge of insurance companies to suggest what the customer might mean.
+  - Current Home Insurance Provider (or "Not Insured" if they mentioned they don't have insurance) - Use your knowledge of insurance companies to suggest what the customer might mean.
 
 - Health Insurance:
   - Whether they're interested in health insurance (Yes/No) - If the customer answers the following questions about Number of people in household and current insurance provider, they are to be marked as Interested.
   - Number of people in household
-  - Current Health Insurance Provider (or "Not Insured" if they mentioned they don’t have insurance)
+  - Current Health Insurance Provider (or "Not Insured" if they mentioned they don't have insurance)
 
-For vehicle information, if you detect a make/model that doesn’t seem to exist or seems incorrect based on your knowledge of vehicles, do NOT replace it with a corrected version. Instead, include a "suggested_correction" field with your suggested correction and the reason for it. For example:
+For vehicle information, if you detect a make/model that doesn't seem to exist or seems incorrect based on your knowledge of vehicles, do NOT replace it with a corrected version. Instead, include a "suggested_correction" field with your suggested correction and the reason for it. For example:
 
 "main_vehicle": {
   "year": "2005",
@@ -190,15 +190,15 @@ For vehicle information, if you detect a make/model that doesn’t seem to exist
 }
 
 Agent Performance Evaluation:
-Analyze the transcript to determine if the agent asked the following questions. Assume the agent is the speaker who is not the customer (e.g., the agent is typically the speaker asking questions, while the customer is the speaker providing answers). Use contextual clues to identify the agent’s questions:
-- Did the agent ask for the best callback number? (e.g., " this the best phone number that you'd like to be called back on?", "What is the best number to reach you at?", "Can I have a callback number?", "What’s a good number to call you back?")
-- Did the agent ask for the customer’s first and last name? (e.g., "Can you verify the spelling of your first name?", "spell your last name for me", "Can you tell me your full name?", "What’s your first and last name?")
+Analyze the transcript to determine if the agent asked the following questions. Assume the agent is the speaker who is not the customer (e.g., the agent is typically the speaker asking questions, while the customer is the speaker providing answers). Use contextual clues to identify the agent's questions:
+- Did the agent ask for the best callback number? (e.g., " this the best phone number that you'd like to be called back on?", "What is the best number to reach you at?", "Can I have a callback number?", "What's a good number to call you back?")
+- Did the agent ask for the customer's first and last name? (e.g., "Can you verify the spelling of your first name?", "spell your last name for me", "Can you tell me your full name?", "What's your first and last name?")
 - Did the agent ask for the year, make, and model of the vehicle? (e.g., "What is the year, make, and model of your vehicle?", "Can you tell me about your car – year, make, model?")
-- Did the agent ask about a secondary vehicle? (e.g., "Do you have another vehicle?", "What’s the year, make, and model of your second car?")
+- Did the agent ask about a secondary vehicle? (e.g., "Do you have another vehicle?", "What's the year, make, and model of your second car?")
 - Did the agent ask about the current insurance provider? (e.g., "What is the name of your current insurance", "Who is your current insurance provider?", "Do you have insurance right now, and with whom?")
 - Did the agent ask if the customer owns or rents their home? (e.g., "Do you own or rent your home?", "Are you a homeowner or a renter?")
-- Did the agent ask for the customer’s date of birth? (e.g., "What is your date of birth?", "Can I have your DOB?", "have your Birth Year, Month and Date?", "may i please get your date of birth")
-- Did the agent ask for the customer’s address? (e.g., "What’s your address?", "what is your street address ", "what is your street address and what is your city and state ", "Can you provide your full address?")
+- Did the agent ask for the customer's date of birth? (e.g., "What is your date of birth?", "Can I have your DOB?", "have your Birth Year, Month and Date?", "may i please get your date of birth")
+- Did the agent ask for the customer's address? (e.g., "What's your address?", "what is your street address ", "what is your street address and what is your city and state ", "Can you provide your full address?")
 
 Your response must be a valid JSON object with this structure:
 {
