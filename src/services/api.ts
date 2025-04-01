@@ -1,5 +1,4 @@
 import { ValidationResult, ValidationStatus, TranscriptData, MelissaData, VerificationStatus } from '../types';
-// Removed unused import: config
 
 // Function to transcribe audio using Deepgram API with diarization enabled
 export const transcribeAudio = async (audioFile: File): Promise<string> => {
@@ -92,6 +91,60 @@ const compareStringsLoosely = (str1?: string, str2?: string, isZip: boolean = fa
   return str1.trim().toLowerCase() === str2.trim().toLowerCase();
 };
 
+// Helper function to normalize spelled-out names in the transcript
+const normalizeSpelledOutName = (text: string): string => {
+  return text
+    .toLowerCase()
+    .replace(/([a-z])\s+([a-z])/g, '$1$2') // Remove spaces between letters (e.g., "j e n" → "jen")
+    .replace(/([a-z])-([a-z])/g, '$1$2'); // Remove dashes between letters (e.g., "c-o-l" → "col")
+};
+
+// Helper function to extract spelled-out names from the transcript
+const extractSpelledOutNames = (transcript: string): { firstName: string | undefined; lastName: string | undefined } => {
+  const lines = transcript.split('\n');
+  let firstName: string | undefined;
+  let lastName: string | undefined;
+
+  // Regular expression to match a sequence of letters separated by spaces or dashes (e.g., "j e n n i s e r" or "c-o-l-e-c-i-o")
+  const letterSequenceRegex = /^[a-z](?:\s*[a-z]|\-[a-z])*$/i;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].toLowerCase();
+
+    // Look for the first name after "can you verify the spelling your first name"
+    if (line.includes('can you verify the spelling your first name')) {
+      // Look at the next line for the spelled-out name
+      if (i + 1 < lines.length) {
+        const nextLine = lines[i + 1];
+        // Extract the part after the speaker tag (e.g., "[Speaker:3] j e n n i s e r" → "j e n n i s e r")
+        const namePart = nextLine.replace(/^\[Speaker:\d+\]\s*/, '').trim();
+        if (letterSequenceRegex.test(namePart)) {
+          // Remove spaces and dashes, capitalize the first letter
+          const normalizedName = namePart.replace(/[\s-]/g, '');
+          firstName = normalizedName.charAt(0).toUpperCase() + normalizedName.slice(1).toLowerCase();
+        }
+      }
+    }
+
+    // Look for the last name after "can you please spell your last name"
+    if (line.includes('can you please spell your last name')) {
+      // Look at the next line for the spelled-out name
+      if (i + 1 < lines.length) {
+        const nextLine = lines[i + 1];
+        // Extract the part after the speaker tag
+        const namePart = nextLine.replace(/^\[Speaker:\d+\]\s*/, '').trim();
+        if (letterSequenceRegex.test(namePart)) {
+          // Remove spaces and dashes, capitalize the first letter
+          const normalizedName = namePart.replace(/[\s-]/g, '');
+          lastName = normalizedName.charAt(0).toUpperCase() + normalizedName.slice(1).toLowerCase();
+        }
+      }
+    }
+  }
+
+  return { firstName, lastName };
+};
+
 export const validateLeadWithOpenAI = async (
   transcript: string, 
   phoneNumber: string,
@@ -100,6 +153,11 @@ export const validateLeadWithOpenAI = async (
   try {
     console.log("Starting OpenAI validation for transcript:", transcript.substring(0, 100) + "...");
     console.log("With Melissa context:", context?.melissaData);
+
+    // Step 1: Extract the spelled-out names using a rule-based approach
+    const { firstName: ruleBasedFirstName, lastName: ruleBasedLastName } = extractSpelledOutNames(transcript);
+    console.log("Rule-based extracted first name:", ruleBasedFirstName);
+    console.log("Rule-based extracted last name:", ruleBasedLastName);
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -132,9 +190,6 @@ When analyzing the transcript:
   - Use contextual cues like "my name is," "spell your name," "first name," or "last name", "can you verify the spelling of your first name please" and "can you please spell your last name for me" (this question is usually asked, and the customer then spells their name) to identify the correct fields.
   - Combine letters into a single word, capitalizing the first letter (e.g., "k i p p" becomes "Kipp").
   - Last Name ("last_name") is usually provided after the contenxtual clue "can you please spell your last name for me"
-  - If only the first name is provided in the transcript (e.g., "My name is Denny"), set "first_name" to "Denny" and "last_name" to "" (empty string).
-  - If only the last name is provided, set "first_name" to "" and "last_name" to the provided last name.
-  - If no name is provided, set both "first_name" and "last_name" to "".
 - DO NOT override the extracted transcript data with Melissa data during extraction, even if Melissa data is provided.
 - IGNORE Melissa data when extracting fields for "extracted_data". Melissa data is only for comparison purposes after extraction.
 - DO extract any vehicle, home, or health insurance information
@@ -308,14 +363,30 @@ Address Verified: ${context.melissaData.addressVerified ? 'Yes' : 'No'}
     
     console.log("Parsed OpenAI result:", result);
 
+    // Log the extracted names from OpenAI for debugging
+    console.log("Extracted first_name from OpenAI:", result.extracted_data?.first_name);
+    console.log("Extracted last_name from OpenAI:", result.extracted_data?.last_name);
+
+    // Step 2: Override OpenAI's extracted names with the rule-based extracted names
+    if (ruleBasedFirstName) {
+      console.log("Overriding OpenAI first_name with rule-based first_name:", ruleBasedFirstName);
+      result.extracted_data.first_name = ruleBasedFirstName;
+    }
+    if (ruleBasedLastName) {
+      console.log("Overriding OpenAI last_name with rule-based last_name:", ruleBasedLastName);
+      result.extracted_data.last_name = ruleBasedLastName;
+    }
+
     // Safeguard: Ensure extracted_data doesn't include Melissa data for name fields
     const melissaFirstName = context?.melissaData?.firstName?.toLowerCase() || '';
     const melissaLastName = context?.melissaData?.lastName?.toLowerCase() || '';
     const extractedFirstName = (result.extracted_data?.first_name || '').toLowerCase();
     const extractedLastName = (result.extracted_data?.last_name || '').toLowerCase();
 
+    // Normalize the transcript to handle spelled-out names
+    const transcriptLower = normalizeSpelledOutName(transcript.toLowerCase());
+
     // Check if extracted names match Melissa data but aren't in the transcript
-    const transcriptLower = transcript.toLowerCase();
     if (
       extractedFirstName &&
       extractedFirstName === melissaFirstName &&
@@ -473,7 +544,7 @@ Address Verified: ${context.melissaData.addressVerified ? 'Yes' : 'No'}
             ...(result.extracted_data?.auto_insurance?.main_vehicle?.suggested_correction && {
               suggestedCorrection: {
                 make: result.extracted_data.auto_insurance.main_vehicle.suggested_correction.make,
-                model: result.extracted_data.auto_insurance.main_vehicle.suggested_correction.model,
+                model: ruleBasedFirstName,
                 year: result.extracted_data.auto_insurance.main_vehicle.suggested_correction.year,
                 reason: result.extracted_data.auto_insurance.main_vehicle.suggested_correction.reason
               }
