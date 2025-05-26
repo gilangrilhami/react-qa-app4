@@ -1,7 +1,5 @@
-import { MelissaContext } from "./interfaces.ts";
-
-export const createUserPrompt = (transcript: string, phoneNumber: string, melissaData: MelissaContext): string => {
-    return `Call transcript: ${transcript}
+export const createUserPrompt = (transcript, phoneNumber, melissaData)=>{
+  return `Call transcript: ${transcript}
 Phone number from filename: ${phoneNumber}
 ${melissaData ? `
 Melissa Data (for comparison only, do not use for extraction):
@@ -13,9 +11,8 @@ State: ${melissaData.state || 'Not found'}
 ZIP: ${melissaData.zip || 'Not found'}
 Name Verified: ${melissaData.nameVerified ? 'Yes' : 'No'}
 Address Verified: ${melissaData.addressVerified ? 'Yes' : 'No'}
-` : 'No Melissa data available.'}`
-}
-
+` : 'No Melissa data available.'}`;
+};
 export const SYSTEM_PROMPT = `You are an AI assistant analyzing insurance call transcripts to determine lead quality, extract customer information, and evaluate agent performance.
 
 IMPORTANT: You will receive data from two sources:
@@ -166,4 +163,4 @@ Your response must be a valid JSON object with this structure:
     "asked_for_dob": true|false,
     "asked_for_address": true|false
   }
-}`
+}`;
