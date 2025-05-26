@@ -6,8 +6,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { supabaseClient, OPENAI_KEY } from "./configs.ts";
 import { createUserPrompt, SYSTEM_PROMPT } from "./prompts.ts";
-import { normalizeSpelledOutName, extractSpelledOutNames } from "./helpers.ts";
-import { RequestPayload } from "./interfaces.ts";
+import { normalizeSpelledOutName, extractSpelledOutNames, compareStringsLoosely } from "./helpers.ts";
+import { RequestPayload, TranscriptData, MelissaData, VerificationStatus, ValidationResult, ValidationStatus } from "./interfaces.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -145,8 +145,6 @@ Deno.serve(async (req) => {
       ) {
         console.warn("Extracted first_name matches Melissa data but isn't in transcript. Clearing it:", extractedFirstName);
         result.extracted_data.first_name = '';
-        if (!result.data_discrepancies) result.data_discrepancies = [];
-        result.data_discrepancies.push("First name from OpenAI matched Melissa data but wasn't found in transcript");
       }
 
       if (
@@ -156,14 +154,208 @@ Deno.serve(async (req) => {
       ) {
         console.warn("Extracted last_name matches Melissa data but isn't in transcript. Clearing it:", extractedLastName);
         result.extracted_data.last_name = '';
-        if (!result.data_discrepancies) result.data_discrepancies = [];
-        result.data_discrepancies.push("Last name from OpenAI matched Melissa data but wasn't found in transcript");
       }
+    }
+
+    const transcriptData: TranscriptData = {
+      firstName: result.extracted_data?.first_name || undefined,
+      lastName: result.extracted_data?.last_name || undefined,
+      address: result.extracted_data?.address || undefined,
+      zip: result.extracted_data?.zip_code || undefined,
+      state: result.extracted_data?.state || undefined,
+      phoneNumber: result.extracted_data?.phone_number || phoneNumber || undefined,
+      email: result.extracted_data?.email || undefined,
+      dob: result.extracted_data?.date_of_birth || undefined,
+      autoInsurance: {
+        mainVehicle: result.extracted_data?.auto_insurance?.main_vehicle ? {
+          year: result.extracted_data.auto_insurance.main_vehicle.year || '',
+          make: result.extracted_data.auto_insurance.main_vehicle.make || '',
+          model: result.extracted_data.auto_insurance.main_vehicle.model || '',
+          ...(result.extracted_data.auto_insurance.main_vehicle.confidence && {
+            confidence: result.extracted_data.auto_insurance.main_vehicle.confidence
+          }),
+          ...(result.extracted_data.auto_insurance.main_vehicle.suggested_correction && {
+            suggestedCorrection: {
+              make: result.extracted_data.auto_insurance.main_vehicle.suggested_correction.make,
+              model: result.extracted_data.auto_insurance.main_vehicle.suggested_correction.model,
+              year: result.extracted_data.auto_insurance.main_vehicle.suggested_correction.year,
+              reason: result.extracted_data.auto_insurance.main_vehicle.suggested_correction.reason
+            }
+          })
+        } : undefined,
+        secondaryVehicle: result.extracted_data?.auto_insurance?.secondary_vehicle ? {
+          year: result.extracted_data.auto_insurance.secondary_vehicle.year || '',
+          make: result.extracted_data.auto_insurance.secondary_vehicle.make || '',
+          model: result.extracted_data.auto_insurance.secondary_vehicle.model || '',
+          ...(result.extracted_data.auto_insurance.secondary_vehicle.confidence && {
+            confidence: result.extracted_data.auto_insurance.secondary_vehicle.confidence
+          }),
+          ...(result.extracted_data.auto_insurance.secondary_vehicle.suggested_correction && {
+            suggestedCorrection: {
+              make: result.extracted_data.auto_insurance.secondary_vehicle.suggested_correction.make,
+              model: result.extracted_data.auto_insurance.secondary_vehicle.suggested_correction.model,
+              year: result.extracted_data.auto_insurance.secondary_vehicle.suggested_correction.year,
+              reason: result.extracted_data.auto_insurance.secondary_vehicle.suggested_correction.reason
+            }
+          })
+        } : undefined,
+        currentProvider: result.extracted_data?.auto_insurance?.current_provider || ''
+      },
+      homeInsurance: {
+        interested: result.extracted_data?.home_insurance?.interested,
+        ownership: result.extracted_data?.home_insurance?.ownership || '',
+        homeType: result.extracted_data?.home_insurance?.home_type || '',
+        currentProvider: result.extracted_data?.home_insurance?.current_provider || ''
+      },
+      healthInsurance: {
+        interested: result.extracted_data?.health_insurance?.interested,
+        householdSize: result.extracted_data?.health_insurance?.household_size || null,
+        currentProvider: result.extracted_data?.health_insurance?.current_provider || ''
+      }
+    };
+
+    const checkMelissaData: MelissaData = {
+      firstName: melissaData?.firstName || undefined,
+      lastName: melissaData?.lastName || undefined,
+      address: melissaData?.address || undefined,
+      city: melissaData?.city || undefined,
+      state: melissaData?.state || undefined,
+      zip: melissaData?.zip || undefined,
+      phoneNumber: phoneNumber || undefined,
+      email: melissaData?.email || undefined,
+      dob: melissaData?.dob || undefined,
+      isVerified: !!melissaData?.nameVerified || !!melissaData?.addressVerified
+    };
+
+    const transcriptFirstName = transcriptData.firstName;
+    const transcriptLastName = transcriptData.lastName;
+    const transcriptAddress = transcriptData.address;
+
+    const verification: VerificationStatus = {
+      nameMatches:
+        (transcriptData.firstName || transcriptData.lastName) &&
+          (checkMelissaData.firstName || checkMelissaData.lastName) ?
+          compareStringsLoosely(
+            `${transcriptData.firstName || ''} ${transcriptData.lastName || ''}`.trim(),
+            `${checkMelissaData.firstName || ''} ${checkMelissaData.lastName || ''}`.trim()
+          ) : undefined,
+      addressMatches:
+        transcriptData.address && checkMelissaData.address ?
+          compareStringsLoosely(transcriptData.address, checkMelissaData.address) : undefined,
+      zipMatches:
+        transcriptData.zip && checkMelissaData.zip ?
+          compareStringsLoosely(transcriptData.zip, checkMelissaData.zip, true) : undefined,
+      stateMatches:
+        transcriptData.state && checkMelissaData.state ?
+          compareStringsLoosely(transcriptData.state, checkMelissaData.state) : undefined
+    };
+
+    const validationResult: ValidationResult = {
+      status: result.classification.toLowerCase() as ValidationStatus,
+      confidenceScore: result.confidence_score || 0.8,
+      reasons: result.reasons || [],
+
+      transcriptData,
+      melissaData: checkMelissaData,
+      verification,
+
+      transcriptFirstName,
+      transcriptLastName,
+      transcriptAddress,
+      melissaLookupAttempted: !!melissaData,
+      nameVerified: !!melissaData?.nameVerified,
+      addressVerified: !!melissaData?.addressVerified,
+      nameFromMelissa: !!melissaData?.firstName || !!melissaData?.lastName,
+      addressFromMelissa: !!melissaData?.address,
+      addressMatchesMelissa: verification.addressMatches,
+
+      extractedData: {
+        firstName: transcriptData.firstName || '',
+        lastName: transcriptData.lastName || '',
+        dob: transcriptData.dob || '',
+        phoneNumber: phoneNumber || transcriptData.phoneNumber || '',
+        address: transcriptData.address || '',
+        zip: transcriptData.zip || '',
+        state: transcriptData.state || '',
+        email: transcriptData.email || '',
+
+        vehicleInfo: result.extracted_data?.auto_insurance?.main_vehicle ?
+          `${result.extracted_data.auto_insurance.main_vehicle.year || ''} ${result.extracted_data.auto_insurance.main_vehicle.make || ''} ${result.extracted_data.auto_insurance.main_vehicle.model || ''}`.trim() : '',
+
+        autoInsurance: {
+          mainVehicle: {
+            year: result.extracted_data?.auto_insurance?.main_vehicle?.year || '',
+            make: result.extracted_data?.auto_insurance?.main_vehicle?.make || '',
+            model: result.extracted_data?.auto_insurance?.main_vehicle?.model || '',
+            ...(result.extracted_data?.auto_insurance?.main_vehicle?.confidence && {
+              confidence: result.extracted_data.auto_insurance.main_vehicle.confidence
+            }),
+            ...(result.extracted_data?.auto_insurance?.main_vehicle?.suggested_correction && {
+              suggestedCorrection: {
+                make: result.extracted_data.auto_insurance.main_vehicle.suggested_correction.make,
+                model: ruleBasedFirstName,
+                year: result.extracted_data.auto_insurance.main_vehicle.suggested_correction.year,
+                reason: result.extracted_data.auto_insurance.main_vehicle.suggested_correction.reason
+              }
+            })
+          },
+          secondaryVehicle: result.extracted_data?.auto_insurance?.secondary_vehicle ? {
+            year: result.extracted_data.auto_insurance.secondary_vehicle.year || '',
+            make: result.extracted_data.auto_insurance.secondary_vehicle.make || '',
+            model: result.extracted_data.auto_insurance.secondary_vehicle.model || '',
+            ...(result.extracted_data.auto_insurance.secondary_vehicle.confidence && {
+              confidence: result.extracted_data.auto_insurance.secondary_vehicle.confidence
+            }),
+            ...(result.extracted_data.auto_insurance.secondary_vehicle.suggested_correction && {
+              suggestedCorrection: {
+                make: result.extracted_data.auto_insurance.secondary_vehicle.suggested_correction.make,
+                model: result.extracted_data.auto_insurance.secondary_vehicle.suggested_correction.model,
+                year: result.extracted_data.auto_insurance.secondary_vehicle.suggested_correction.year,
+                reason: result.extracted_data.auto_insurance.secondary_vehicle.suggested_correction.reason
+              }
+            })
+          } : undefined,
+          currentProvider: result.extracted_data?.auto_insurance?.current_provider || ''
+        },
+        homeInsurance: {
+          interested: result.extracted_data?.home_insurance?.interested,
+          ownership: result.extracted_data?.home_insurance?.ownership || '',
+          homeType: result.extracted_data?.home_insurance?.home_type || '',
+          currentProvider: result.extracted_data?.home_insurance?.current_provider || ''
+        },
+        healthInsurance: {
+          interested: result.extracted_data?.health_insurance?.interested,
+          householdSize: result.extracted_data?.health_insurance?.household_size || null,
+          currentProvider: result.extracted_data?.health_insurance?.current_provider || ''
+        },
+        agentFeedback: {
+          askedForCallbackNumber: result.agent_feedback?.asked_for_callback_number || false,
+          askedForFirstAndLastName: result.agent_feedback?.asked_for_first_and_last_name || false,
+          askedForVehicleYearMakeModel: result.agent_feedback?.asked_for_vehicle_year_make_model || false,
+          askedForSecondaryVehicle: result.agent_feedback?.asked_for_secondary_vehicle || false,
+          askedForCurrentInsuranceProvider: result.agent_feedback?.asked_for_current_insurance_provider || false,
+          askedForOwnRentHome: result.agent_feedback?.asked_for_own_rent_home || false,
+          askedForDob: result.agent_feedback?.asked_for_dob || false,
+          askedForAddress: result.agent_feedback?.asked_for_address || false
+        }
+      }
+    };
+
+    if (result.missing_information && result.missing_information.length > 0) {
+      validationResult.needsManualReview = true;
+      validationResult.manualReviewReasons = result.missing_information.map((field: string) => `Missing: ${field}`);
+    }
+
+    if (result.data_discrepancies && result.data_discrepancies.length > 0) {
+      validationResult.needsManualReview = true;
+      validationResult.manualReviewReasons = validationResult.manualReviewReasons
+        ? [...validationResult.manualReviewReasons, ...result.data_discrepancies]
+        : result.data_discrepancies;
     }
 
     // Return the validated result
     return new Response(
-      JSON.stringify(result),
+      JSON.stringify(validationResult),
       { headers: { 'Content-Type': 'application/json' } }
     );
 
