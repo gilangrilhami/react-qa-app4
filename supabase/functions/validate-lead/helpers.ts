@@ -49,3 +49,15 @@ export const extractSpelledOutNames = (transcript: string): { firstName: string 
 
     return { firstName, lastName };
 };
+
+export const compareStringsLoosely = (str1?: string, str2?: string, isZip: boolean = false): boolean => {
+    if (!str1 && !str2) return true;
+    if (!str1 || !str2) return false;
+
+    if (isZip) {
+        const normalizeZip = (zip: string) => zip.split("-")[0].trim();
+        return normalizeZip(str1).toLowerCase() === normalizeZip(str2).toLowerCase();
+    }
+
+    return str1.trim().toLowerCase() === str2.trim().toLowerCase();
+};
