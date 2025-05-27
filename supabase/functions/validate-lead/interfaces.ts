@@ -170,7 +170,7 @@ export interface MelissaContext {
 
 
 export interface RequestPayload {
-    transcript: string;
+    transcriptTextPath: string;
     phoneNumber: string;
     melissaData?: MelissaContext;
 }
