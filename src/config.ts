@@ -2,11 +2,15 @@ interface Config {
     DEEPGRAM_API_KEY: string;
     OPENAI_API_KEY: string;
     IS_DEVELOPMENT: boolean;
+    SUPABASE_URL: string;
+    SUPABASE_ANON_KEY: string;
   }
   
   const config: Config = {
     DEEPGRAM_API_KEY: process.env.REACT_APP_DEEPGRAM_API_KEY || '',
     OPENAI_API_KEY: process.env.REACT_APP_OPENAI_API_KEY || '',
+    SUPABASE_URL: process.env.REACT_APP_SUPABASE_URL || '',
+    SUPABASE_ANON_KEY: process.env.REACT_APP_SUPABASE_ANON_KEY || '',
     IS_DEVELOPMENT: process.env.NODE_ENV === 'development'
   };
   
