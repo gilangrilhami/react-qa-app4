@@ -14,6 +14,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const BUCKET_NAME = 'transcript';
+
+const getTranscriptText = async (audioTextPath: string): Promise<string> => {
+  const { data, error } = await supabaseClient.storage
+    .from(BUCKET_NAME)
+    .download(audioTextPath);
+  if (error) {
+    console.error("Error downloading transcript text:", error);
+    throw new Error(`Failed to download transcript text: ${error.message}`);
+  }
+  const text = await data.text();
+  console.log("Transcript text downloaded successfully:", audioTextPath);
+  return text;
+}
+
 Deno.serve(async (req) => {
   try {
     // Handle CORS preflight request
@@ -31,9 +46,9 @@ Deno.serve(async (req) => {
 
     // Parse request body
     const payload: RequestPayload = await req.json();
-    const { transcript, phoneNumber, melissaData } = payload;
+    const { transcriptTextPath, phoneNumber, melissaData } = payload;
 
-    if (!transcript) {
+    if (!transcriptTextPath) {
       return new Response(
         JSON.stringify({ error: 'Transcript is required' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -55,15 +70,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log("Starting OpenAI validation for transcript:", transcript.substring(0, 100) + "...");
     if (melissaData) {
       console.log("With Melissa context:", melissaData);
     }
 
+
+
     // Step 1: Extract the spelled-out names using a rule-based approach
+    const transcript = await getTranscriptText(transcriptTextPath);
+    console.log("Transcript text retrieved successfully");
+    console.log("Starting OpenAI validation for transcript:", transcript.substring(0, 100) + "...");
+
     const { firstName: ruleBasedFirstName, lastName: ruleBasedLastName } = extractSpelledOutNames(transcript);
     console.log("Rule-based extracted first name:", ruleBasedFirstName);
     console.log("Rule-based extracted last name:", ruleBasedLastName);
+    
 
     // Prepare OpenAI API request
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
