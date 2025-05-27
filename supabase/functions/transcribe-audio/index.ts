@@ -121,6 +121,7 @@ Deno.serve(async (req) => {
     audioUrl: audioMp3SignedUrl,
     textUrl: audioTextSignedUrl,
     jsonUrl: audioJsonSignedUrl,
+    transcriptTextPath: audioTextFilePath,
   }
 
 
