@@ -3,27 +3,13 @@ import { ValidationResult } from '../types';
 
 const BUCKET_NAME = 'transcript';
 
-type AudioTranscriptionResponse = {
+export type AudioTranscriptionResponse = {
     audioUrl: string;
     textUrl: string;
     jsonUrl: string;
     transcriptTextPath: string;
 };
 
-type LeadValidationPayload = {
-    transcriptTextPath: string;
-    phoneNumber: string;
-    melissaData: {
-        firstName: string;
-        lastName: string;
-        address: string;
-        city: string;
-        state: string;
-        zip: string;
-        nameVerified: boolean;
-        addressVerified: boolean;
-    }
-};
 
 interface MelissaContext {
     firstName?: string;
@@ -39,16 +25,20 @@ interface MelissaContext {
     phoneVerified?: boolean;
 }
 
+type LeadValidationPayload = {
+    transcriptTextPath: string;
+    phoneNumber: string;
+    melissaData: MelissaContext;
+};
+
 export const transcribeAudio = async (audioFile: File): Promise<AudioTranscriptionResponse> => {
     const formData = new FormData();
     formData.append('audio', audioFile);
 
     const { data, error } = await supabase.functions.invoke<AudioTranscriptionResponse>('transcribe-audio', {
         body: formData,
-        headers: {
-            'Content-Type': 'multipart/form-data',
-        },
     });
+    console.log('Transcribe audio function response:', data, error);
     if (error) {
         console.error('Error invoking transcribe-audio function:', error);
         throw new Error('Failed to transcribe audio');
@@ -64,23 +54,12 @@ export const validateLead = async (transcriptTextPath: string, phoneNumber: stri
     const payload: LeadValidationPayload = {
         transcriptTextPath,
         phoneNumber,
-        melissaData: {
-            firstName: context?.melissaData?.firstName || '',
-            lastName: context?.melissaData?.lastName || '',
-            address: context?.melissaData?.address || '',
-            city: context?.melissaData?.city || '',
-            state: context?.melissaData?.state || '',
-            zip: context?.melissaData?.zip || '',
-            nameVerified: context?.melissaData?.nameVerified || false,
-            addressVerified: context?.melissaData?.addressVerified || false,
-        }
+        melissaData: context?.melissaData || {},
     };
+    console.log('Payload for validateLead:', payload);
 
     const { data, error } = await supabase.functions.invoke<ValidationResult>('validate-lead', {
-        body: JSON.stringify(payload),
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        body: payload,
     });
 
     if (error) {
