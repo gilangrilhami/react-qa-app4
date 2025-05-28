@@ -14,9 +14,11 @@ const addFileNameSafety = (fileName: string): string => {
 }
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "OPTIONS, POST",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 
 Deno.serve(async (req) => {
   // Handle CORS preflight request
@@ -124,10 +126,10 @@ Deno.serve(async (req) => {
     transcriptTextPath: audioTextFilePath,
   }
 
-
+  console.log("Transcription result:", result);
   return new Response(
     JSON.stringify(result),
-    { headers: { "Content-Type": "application/json" } },
+    { headers: { "Content-Type": "application/json", ...corsHeaders } },
   )
 })
 

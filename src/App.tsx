@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import './App.css';
 // Check if these paths match your project structure
-import { transcribeAudio, validateLeadWithOpenAI } from './services/api';
+import { AudioTranscriptionResponse, transcribeAudio, validateLead, } from './services/edgeFunctions';
+import { getFileText } from './services/storage';
 import { ValidationResult } from './types'; // Removed MelissaVerificationResult import
 import FileUpload from './components/FileUpload';
 import ValidationResultComponent from './components/ValidationResult';
@@ -160,13 +161,17 @@ const App: React.FC = () => {
       }
       
       // Step 3: Transcribe audio with Deepgram
-      const transcription = await getTranscription(file);
-      setTranscript(transcription);
+      const transcription: AudioTranscriptionResponse = await getTranscription(file);
+      const transcriptAudioUrl = transcription.audioUrl;
+      const trancriptJsonUrl = transcription.jsonUrl;
+      const transcriptTextPath = transcription.transcriptTextPath;
+      const transcript = await getFileText(transcriptTextPath);
+      setTranscript(transcript);
       
       // Step 4: Use OpenAI to validate the lead based on transcript and Melissa data
       // Pass both the transcript and the Melissa data to OpenAI
-      const openAIResult = await validateLeadWithOpenAI(
-        transcription, 
+      const openAIResult: ValidationResult = await validateLead(
+        transcriptTextPath, 
         phoneNumber,
         {
           melissaData: {
@@ -279,7 +284,7 @@ const App: React.FC = () => {
   };
 
   // Get transcription from Deepgram API
-  const getTranscription = async (file: File): Promise<string> => {
+  const getTranscription = async (file: File): Promise<AudioTranscriptionResponse> => {
     try {
       const transcript = await transcribeAudio(file);
       console.log("Transcription successful:", transcript);
@@ -316,7 +321,7 @@ const App: React.FC = () => {
             {!isLoading && validationResult && (
               <ValidationResultComponent 
                 result={validationResult}
-                transcript={transcript} 
+                transcript={transcript}
               />
             )}
             

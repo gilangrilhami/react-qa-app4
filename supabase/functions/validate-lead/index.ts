@@ -10,9 +10,11 @@ import { normalizeSpelledOutName, extractSpelledOutNames, compareStringsLoosely 
 import { RequestPayload, TranscriptData, MelissaData, VerificationStatus, ValidationResult, ValidationStatus } from "./interfaces.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "OPTIONS, POST",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 
 const BUCKET_NAME = 'transcript';
 
@@ -84,7 +86,7 @@ Deno.serve(async (req) => {
     const { firstName: ruleBasedFirstName, lastName: ruleBasedLastName } = extractSpelledOutNames(transcript);
     console.log("Rule-based extracted first name:", ruleBasedFirstName);
     console.log("Rule-based extracted last name:", ruleBasedLastName);
-    
+
 
     // Prepare OpenAI API request
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -377,7 +379,7 @@ Deno.serve(async (req) => {
     // Return the validated result
     return new Response(
       JSON.stringify(validationResult),
-      { headers: { 'Content-Type': 'application/json' } }
+      { headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
 
   } catch (error) {
