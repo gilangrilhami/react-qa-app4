@@ -1,27 +1,83 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 // Check if these paths match your project structure
 import { AudioTranscriptionResponse, transcribeAudio, validateLead, } from './services/edgeFunctions';
 import { getFileText } from './services/storage';
-import { ValidationResult } from './types'; // Removed MelissaVerificationResult import
+import { ValidationResult } from './types';
 import FileUpload from './components/FileUpload';
 import ValidationResultComponent from './components/ValidationResult';
+import ValidationResultsList from './components/ValidationResultsList';
 import { verifyContact } from './services/melissaApi';
 import { isValidZipCode } from './util';
+import { saveValidationResult, getValidationResults, getValidationResultById, StoredValidationResult } from './services/validationResult';
+import { FaArrowLeft } from 'react-icons/fa';
 
 const App: React.FC = () => {
   console.log("Deepgram API Key:", process.env.REACT_APP_DEEPGRAM_API_KEY ? "Set (length: " + process.env.REACT_APP_DEEPGRAM_API_KEY.length + ")" : "Not set");
   console.log("OpenAI API Key:", process.env.REACT_APP_OPENAI_API_KEY ? "Set (length: " + process.env.REACT_APP_OPENAI_API_KEY.length + ")" : "Not set");
   console.log("Melissa API Key:", process.env.REACT_APP_MELISSA_API_KEY ? "Set (length: " + process.env.REACT_APP_MELISSA_API_KEY.length + ")" : "Not set");
 
-  // Using the file state to keep reference to the current file
-  const [, setFile] = useState<File | null>(null); // Removed unused variable
+  // State for file and processing
+  const [file, setFile] = useState<File | null>(null);
+  const [fileName, setFileName] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [transcript, setTranscript] = useState<string>('');
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  
+  // State for saved results
+  const [savedResults, setSavedResults] = useState<StoredValidationResult[]>([]);
+  const [isLoadingResults, setIsLoadingResults] = useState<boolean>(false);
+  const [selectedResult, setSelectedResult] = useState<StoredValidationResult | null>(null);
+  const [view, setView] = useState<'list' | 'detail'>('list');
 
-  // Rest of the component code remains unchanged
-  // ... (rest of the existing code)
+  // Load validation results when the component mounts
+  useEffect(() => {
+    fetchValidationResults();
+  }, []);
+
+  // Fetch validation results from Supabase
+  const fetchValidationResults = async () => {
+    setIsLoadingResults(true);
+    try {
+      const results = await getValidationResults();
+      console.log('Fetched validation results:', results);
+      setSavedResults(results);
+    } catch (error) {
+      console.error('Error fetching validation results:', error);
+    } finally {
+      setIsLoadingResults(false);
+    }
+  };
+
+  // Handle showing details of a selected validation result
+  const handleSelectResult = (result: StoredValidationResult) => {
+    setSelectedResult(result);
+    setTranscript(result.transcript || '');
+    setView('detail');
+  };
+
+  // Go back to the results list
+  const handleBackToList = () => {
+    setSelectedResult(null);
+    setView('list');
+  };
+
+  // After file processing is complete, save to Supabase and refresh the list
+  const handleSaveResult = async (result: ValidationResult, transcript: string, fileName: string) => {
+    try {
+      const savedResult = await saveValidationResult(result, transcript, fileName);
+      // Refresh the results list
+      await fetchValidationResults();
+      
+      // If the result was saved successfully, switch to detail view
+      if (savedResult) {
+        setSelectedResult(savedResult);
+        setView('detail');
+      }
+    } catch (error) {
+      console.error('Error saving validation result:', error);
+    }
+  };
 
   // Extract phone number from filename (assuming filename contains a 10-digit number)
   const extractPhoneFromFilename = (filename: string): string => {
@@ -33,6 +89,7 @@ const App: React.FC = () => {
   const processFile = async (file: File) => {
     setIsLoading(true);
     setFile(file);
+    setFileName(file.name);
     
     try {
       // Step 1: Extract phone number from filename
@@ -270,10 +327,16 @@ const App: React.FC = () => {
         // Set final validation result
         setValidationResult(mergedResult);
         console.log("Final merged validation result:", mergedResult);
+        
+        // Save to Supabase
+        await handleSaveResult(mergedResult, transcript, fileName);
       } else {
         // If OpenAI didn't return results, just use what we have from Melissa
         setValidationResult(result);
         console.log("Using Melissa-only validation result:", result);
+        
+        // Save to Supabase
+        await handleSaveResult(result, transcript, fileName);
       }
     } catch (error) {
       console.error('Error processing file:', error);
@@ -306,11 +369,12 @@ const App: React.FC = () => {
       
       <main className="content">
         <div className="qa-container">
+          {/* Always show the file upload component */}
           <FileUpload onFileSelect={processFile} />
           
+          {/* Display content based on current view state */}
           <div className="result-container">
-            <h2>AI QA Result{isLoading ? '...' : ''}</h2>
-            
+            {/* Show loading spinner when processing a file */}
             {isLoading && (
               <div className="loading">
                 <div className="spinner"></div>
@@ -318,17 +382,26 @@ const App: React.FC = () => {
               </div>
             )}
             
-            {!isLoading && validationResult && (
-              <ValidationResultComponent 
-                result={validationResult}
-                transcript={transcript}
+            {/* In list view mode, show the validation results list */}
+            {!isLoading && view === 'list' && (
+              <ValidationResultsList 
+                results={savedResults}
+                onSelectResult={handleSelectResult}
+                isLoading={isLoadingResults}
               />
             )}
             
-            {!isLoading && !validationResult && (
-              <div className="no-result">
-                <p>Upload an audio file to see QA results</p>
-              </div>
+            {/* In detail view mode, show the selected validation result */}
+            {!isLoading && view === 'detail' && selectedResult && (
+              <>
+                <button className="back-button" onClick={handleBackToList}>
+                  <FaArrowLeft className="back-icon" /> Back to results
+                </button>
+                <ValidationResultComponent 
+                  result={selectedResult}
+                  transcript={selectedResult.transcript}
+                />
+              </>
             )}
           </div>
         </div>
