@@ -9,7 +9,7 @@ import ValidationResultComponent from './components/ValidationResult';
 import ValidationResultsList from './components/ValidationResultsList';
 import { verifyContact } from './services/melissaApi';
 import { isValidZipCode } from './util';
-import { saveValidationResult, getValidationResults, getValidationResultById, StoredValidationResult } from './services/validationResult';
+import { saveValidationResult, getValidationResults, StoredValidationResult } from './services/validationResult';
 import { FaArrowLeft } from 'react-icons/fa';
 
 const App: React.FC = () => {
@@ -18,11 +18,11 @@ const App: React.FC = () => {
   console.log("Melissa API Key:", process.env.REACT_APP_MELISSA_API_KEY ? "Set (length: " + process.env.REACT_APP_MELISSA_API_KEY.length + ")" : "Not set");
 
   // State for file and processing
-  const [file, setFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
   const [fileName, setFileName] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [transcript, setTranscript] = useState<string>('');
-  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [transcript, setTranscript] = useState<string>(''); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null); //eslint-disable-line @typescript-eslint/no-unused-vars
   
   // State for saved results
   const [savedResults, setSavedResults] = useState<StoredValidationResult[]>([]);
@@ -219,8 +219,8 @@ const App: React.FC = () => {
       
       // Step 3: Transcribe audio with Deepgram
       const transcription: AudioTranscriptionResponse = await getTranscription(file);
-      const transcriptAudioUrl = transcription.audioUrl;
-      const trancriptJsonUrl = transcription.jsonUrl;
+      // const transcriptAudioUrl = transcription.audioUrl;
+      // const trancriptJsonUrl = transcription.jsonUrl;
       const transcriptTextPath = transcription.transcriptTextPath;
       const transcript = await getFileText(transcriptTextPath);
       setTranscript(transcript);
