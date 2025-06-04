@@ -1,8 +1,6 @@
 import supabase from '../core/supabase'
 import { ValidationResult } from '../types';
 
-const BUCKET_NAME = 'transcript';
-
 export type AudioTranscriptionResponse = {
     audioUrl: string;
     textUrl: string;
